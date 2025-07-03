@@ -34,36 +34,40 @@ export async function scrapeMotogpData() {
             console.log("Bannière de cookies non trouvée ou déjà acceptée, continuation...");
         }
 
-        const rowSelector = 'tbody > tr'; 
+        const rowSelector = 'tr.standings-table__body-row'; 
         console.log(`Recherche des lignes du tableau avec le sélecteur: "${rowSelector}"`);
         await page.waitForSelector(rowSelector, { timeout: 45000 });
         console.log("Lignes du tableau des classements trouvées.");
 
-        // CORRECTION: Logique d'extraction simplifiée et plus robuste
+        // CORRECTION: Logique d'extraction entièrement revue basée sur la structure HTML fournie
         const riderStandings = await page.evaluate(() => {
             const data = [];
-            const rows = document.querySelectorAll('tbody > tr');
+            const rows = document.querySelectorAll('tr.standings-table__body-row');
             
             rows.forEach(row => {
-                const cells = row.querySelectorAll('td');
-                if (cells.length < 5) return; // Une ligne valide a au moins 5 cellules
+                const cells = row.querySelectorAll('td.standings-table__body-cell');
+                if (cells.length < 4) return;
 
-                // Extraction brute du texte de chaque cellule pertinente
                 const position = cells[0]?.innerText.trim();
-                const riderCellText = cells[1]?.innerText.trim();
-                const teamName = cells[2]?.innerText.trim();
-                const bike = cells[3]?.innerText.trim();
+                const riderCell = cells[1];
+                const teamCell = cells[2];
                 
-                // Les points sont TOUJOURS dans la dernière cellule de la ligne.
-                const points = cells[cells.length - 1]?.innerText.trim();
+                // Les points sont dans la 4ème cellule (index 3)
+                const pointsText = cells[3]?.innerText.trim();
+                // On ne prend que la partie numérique avant le premier espace ou retour à la ligne
+                const points = pointsText.split(/[\s\n]/)[0];
 
-                const countryImg = cells[1]?.querySelector('img.rider-flag');
+                if (!position || !riderCell || !teamCell || !points) return;
+
+                const riderName = riderCell.querySelector('.standings-table__rider-name a')?.innerText.trim();
+                const countryImg = riderCell.querySelector('.standings-table__body-cell-flag');
                 const countryCode = countryImg ? countryImg.getAttribute('src').split('/').pop().split('.')[0].toUpperCase() : 'XX';
+                const teamName = teamCell.querySelector('span')?.innerText.trim();
                 
-                // Nettoyage du nom du pilote pour enlever le numéro
-                const riderName = riderCellText.replace(/^\d+\s/, '').trim();
+                // La moto n'est pas dans une cellule séparée, on la simule à partir du nom de l'équipe
+                const bike = teamName.split(' ')[0];
 
-                if (position && riderName && teamName && points && !isNaN(parseInt(points))) {
+                if (position && riderName && teamName && points && !isNaN(parseInt(points, 10))) {
                     data.push({
                         position: parseInt(position, 10),
                         name: riderName,
