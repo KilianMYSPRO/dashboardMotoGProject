@@ -10,21 +10,27 @@ export async function scrapeRiderStandings(browser) {
         await page.goto(STANDINGS_URL, { waitUntil: 'networkidle2', timeout: 60000 });
         await handleCookieBanner(page);
 
-        // CORRECTION: Revenir au sélecteur de lignes qui fonctionnait
-        const rowSelector = 'tr.standings-table__body-row';
-        await page.waitForSelector(rowSelector, { timeout: 45000 });
-        console.log("Lignes du tableau des classements trouvées.");
+        const tableSelector = 'table.standings-table__table';
+        await page.waitForSelector(tableSelector, { timeout: 45000 });
+        console.log("Tableau des classements trouvé.");
 
         const riderStandings = await page.evaluate(() => {
             const data = [];
-            document.querySelectorAll('tr.standings-table__body-row').forEach(row => {
+            // CORRECTION: On ne prend que le premier tableau trouvé, qui est celui du MotoGP par défaut.
+            const motogpTable = document.querySelector('table.standings-table__table');
+            if (!motogpTable) return [];
+
+            motogpTable.querySelectorAll('tbody > tr.standings-table__body-row').forEach(row => {
                 const cells = row.querySelectorAll('td.standings-table__body-cell');
                 if (cells.length < 4) return;
+                
                 const position = cells[0]?.innerText.trim();
                 const riderCell = cells[1];
                 const teamCell = cells[2];
                 const pointsCell = cells[3];
+                
                 if (!position || !riderCell || !teamCell || !pointsCell) return;
+                
                 const riderName = riderCell.querySelector('.standings-table__rider-name a')?.innerText.trim();
                 const countryImg = riderCell.querySelector('img.standings-table__body-cell-flag');
                 const countryCode = countryImg ? countryImg.getAttribute('src').split('/').pop().split('.')[0].toUpperCase() : 'XX';
@@ -33,6 +39,7 @@ export async function scrapeRiderStandings(browser) {
                 const teamColorStyle = cells[0]?.getAttribute('style');
                 const colorMatch = teamColorStyle ? teamColorStyle.match(/rgb\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)/) : null;
                 const teamColor = colorMatch ? colorMatch[0] : '#BBBBBB';
+
                 if (position && riderName && teamName && points && !isNaN(parseInt(points))) {
                     data.push({
                         position: parseInt(position, 10), name: riderName, team: teamName,
@@ -43,6 +50,7 @@ export async function scrapeRiderStandings(browser) {
             });
             return data;
         });
+        
         console.log(`Scraping des pilotes réussi : ${riderStandings.length} pilotes trouvés.`);
         return { riderStandings };
     } catch (error) {
