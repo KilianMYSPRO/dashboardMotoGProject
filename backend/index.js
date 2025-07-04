@@ -16,19 +16,27 @@ const staticData = {
     funFacts: [
         "Valentino Rossi est le seul pilote à avoir remporté des championnats du monde en 125cc, 250cc, 500cc et MotoGP.",
         "Le circuit le plus long du calendrier est Silverstone avec 5.9 km."
-    ],
-    // CORRECTION: Objet de base complet pour le prochain GP
-    nextGP: { 
-        name: "Prochain Grand Prix", 
-        circuit: "À déterminer", 
-        countryFlag: "🏁", 
-        circuitImage: "https://placehold.co/150x80/141414/FFFFFF?text=Circuit", 
-        raceDate: new Date().toISOString(), 
-        length: "N/A", 
-        corners: "N/A", 
-        lapRecord: "N/A", 
-        weather: [{day: "Ven", icon: "sun", temp: "?"},{day: "Sam", icon: "cloudy", temp: "?"},{day: "Dim", icon: "rain", temp: "?"}] 
-    }
+    ]
+};
+
+const countryNameTranslations = {
+    'THAILAND': 'Thaïlande', 'ARGENTINA': "Argentine", 'USA': 'Amériques', 'SPAIN': "Espagne",
+    'FRANCE': 'France', 'ITALY': "Italie", 'NETHERLANDS': 'Pays-Bas', 'GERMANY': "Allemagne",
+    'UNITED KINGDOM': 'Grande-Bretagne', 'AUSTRIA': "Autriche", 'ARAGON': "Aragon",
+    'CATALONIA': 'Catalogne', 'SAN MARINO': 'Saint-Marin', 'JAPAN': 'Japon',
+    'INDONESIA': "Indonésie", 'AUSTRALIA': "Australie", 'MALAYSIA': 'Malaisie',
+    'PORTUGAL': 'Portugal', 'VALENCIA': 'Valence', 'QATAR': 'Qatar',
+    'CZECHIA': 'Tchéquie', 'HUNGARY': 'Hongrie'
+};
+
+const gpNameTranslations = {
+    'THAILAND': 'de Thaïlande', 'ARGENTINA': "d'Argentine", 'USA': 'des Amériques', 'SPAIN': "d'Espagne",
+    'FRANCE': 'de France', 'ITALY': "d'Italie", 'NETHERLANDS': 'des Pays-Bas', 'GERMANY': "d'Allemagne",
+    'UNITED KINGDOM': 'de Grande-Bretagne', 'AUSTRIA': "d'Autriche", 'ARAGON': "d'Aragon",
+    'CATALONIA': 'de Catalogne', 'SAN MARINO': 'de Saint-Marin', 'JAPAN': 'du Japon',
+    'INDONESIA': "d'Indonésie", 'AUSTRALIA': "d'Australie", 'MALAYSIA': 'de Malaisie',
+    'PORTUGAL': 'du Portugal', 'VALENCIA': 'de Valence', 'QATAR': 'du Qatar',
+    'CZECHIA': 'de Tchéquie', 'HUNGARY': 'de Hongrie'
 };
 
 const parseRaceDateForCountdown = (dateString, year) => {
@@ -71,20 +79,31 @@ app.get('/api/data', async (req, res) => {
 
         const year = new Date().getFullYear();
         
-        // CORRECTION: Assurer que l'objet nextGP est toujours complet
-        const nextGpFromScraper = calendarPageData.nextGP || {};
-        const nextGpData = { ...staticData.nextGP, ...nextGpFromScraper };
+        const translatedCalendar = calendarPageData.seasonCalendar.map(race => ({
+            ...race,
+            gp: `Grand Prix ${gpNameTranslations[race.countryName] || race.countryName || race.gp}`
+        }));
+
+        let nextGpData = calendarPageData.nextGP ? { ...calendarPageData.nextGP } : {};
         if (calendarPageData.nextGP) {
+            nextGpData.name = `Grand Prix ${gpNameTranslations[nextGpData.circuit] || nextGpData.circuit}`;
+            // CORRECTION: Traduire également le nom du circuit
+            nextGpData.circuit = countryNameTranslations[nextGpData.circuit] || nextGpData.circuit;
             nextGpData.raceDate = parseRaceDateForCountdown(calendarPageData.nextGP.raceDate, year);
+        }
+
+        let lastRaceData = calendarPageData.lastRace || { name: "Dernière Course", results: [] };
+        if (calendarPageData.lastRace && calendarPageData.lastRace.countryName) {
+            lastRaceData.name = `Grand Prix ${gpNameTranslations[calendarPageData.lastRace.countryName] || calendarPageData.lastRace.countryName}`;
         }
 
         const fullData = {
             season: year,
-            funFacts: staticData.funFacts,
+            ...staticData,
             riderStandings: standingsData.riderStandings,
-            seasonCalendar: calendarPageData.seasonCalendar,
-            nextGP: nextGpData,
-            lastRace: calendarPageData.lastRace || { name: "Dernière Course", results: [] },
+            seasonCalendar: translatedCalendar,
+            nextGP: { ...staticData.nextGP, ...nextGpData },
+            lastRace: lastRaceData,
             teamStandings: [],
             constructorStandings: [],
         };

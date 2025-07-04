@@ -70,7 +70,6 @@ const CalendarWidget = ({ data, year, delay }) => {
     const calendarRef = useRef(null);
     const nextRaceRef = useRef(null);
 
-    // CORRECTION: Fonction unifiée pour parser et formater la date
     const parseAndFormatDate = (dateString, year) => {
         if (!dateString || typeof dateString !== 'string') return { dateObj: null, formattedDate: 'Date N/A' };
 
@@ -136,7 +135,7 @@ const CalendarWidget = ({ data, year, delay }) => {
                         return (
                             <div key={race.gp} ref={isNext ? nextRaceRef : null} className={`flex-none text-center p-3 rounded-lg ${stateClass} transition-transform duration-300 hover:bg-gray-500/10`}>
                                 <p className="font-bold">{race.gp}</p>
-                                <p className="text-sm text-gray-400">{race.date}</p>
+                                <p className="text-sm text-gray-400">{formattedDate}</p>
                                 {race.winner && <p className="text-xs mt-1 text-yellow-400">🏆 {race.winner}</p>}
                             </div>
                         );
@@ -240,20 +239,6 @@ const NextGpWidget = ({ data, delay }) => {
                             <h3 className="text-2xl font-bold">{data.name} {data.countryFlag}</h3>
                             <p className="text-gray-300">{data.circuit}</p>
                         </div>
-                    </div>
-                    <div className="mt-4 pt-4 border-t border-gray-700/50 grid grid-cols-3 gap-4 text-center">
-                        <div><div className="font-bold text-lg">{data.length}</div><div className="text-xs text-gray-400">Longueur</div></div>
-                        <div><div className="font-bold text-lg">{data.corners.split(' ')[0]}</div><div className="text-xs text-gray-400">Virages</div></div>
-                        <div><div className="font-bold text-lg">{data.lapRecord}</div><div className="text-xs text-gray-400">Record</div></div>
-                    </div>
-                    <div className="mt-4 pt-4 border-t border-gray-700/50 flex justify-around items-center">
-                        {data.weather.map(day => (
-                            <div key={day.day} className="text-center">
-                                <div className="text-2xl flex justify-center"><WeatherIcon iconName={day.icon} /></div>
-                                <div className="font-bold">{day.temp}</div>
-                                <div className="text-xs text-gray-400">{day.day}</div>
-                            </div>
-                        ))}
                     </div>
                 </div>
                 <div className="w-full mt-4 text-center font-black">
@@ -426,7 +411,6 @@ function App() {
                             {data.riderStandings.slice(0, 12).map(rider => {
                                 const isLeader = rider.position === 1;
                                 const highlightClass = isLeader ? 'bg-red-500/20 border-l-2 border-red-500' : 'hover:bg-gray-500/10';
-                                // CORRECTION: Utilisation de la couleur scrapée
                                 const color = rider.teamColor || teamColors[rider.team] || teamColors.Default;
                                 return (
                                     <div key={rider.position} className={`grid grid-cols-12 gap-2 items-center p-2.5 rounded-md transition-all duration-300 ${highlightClass}`}>
