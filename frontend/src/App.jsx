@@ -236,10 +236,24 @@ const NextGpWidget = ({ data, delay }) => {
                         <div className="flex-shrink-0"><img src={data.circuitImage} alt="Tracé du circuit" className="rounded-lg w-36 h-20 object-cover border border-gray-700"/></div>
                         <div className="text-center sm:text-left">
                             <p className="text-gray-400">À venir</p>
-                            <h3 className="text-2xl font-bold">{data.name} {data.countryFlag}</h3>
+                            <h3 className="text-2xl font-bold">{data.name}</h3>
                             <p className="text-gray-300">{data.circuit}</p>
                         </div>
                     </div>
+                    {/* NOUVEAU: Affichage des horaires des séances */}
+                    {data.sessions && data.sessions.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-gray-700/50">
+                            <h4 className="font-semibold text-center mb-2 text-gray-300">Horaires des Séances</h4>
+                            <div className="space-y-1 text-sm max-h-40 overflow-y-auto pr-2">
+                                {data.sessions.map((session, index) => (
+                                    <div key={index} className="flex justify-between p-1.5 rounded-md hover:bg-gray-700/50">
+                                        <span className="text-gray-400">{session.name}</span>
+                                        <span className="font-semibold">{session.time}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
                 <div className="w-full mt-4 text-center font-black">
                     <div className="grid grid-cols-4 gap-1 sm:gap-2 text-center">

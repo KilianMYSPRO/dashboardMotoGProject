@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import puppeteer from 'puppeteer';
+// CORRECTION: Importer depuis les bons fichiers séparés
 import { scrapeRiderStandings } from './scrapers/standingsScraper.js';
 import { scrapeCalendarData } from './scrapers/calendarScraper.js';
 
@@ -25,8 +26,8 @@ const countryNameTranslations = {
     'UNITED KINGDOM': 'Grande-Bretagne', 'AUSTRIA': "Autriche", 'ARAGON': "Aragon",
     'CATALONIA': 'Catalogne', 'SAN MARINO': 'Saint-Marin', 'JAPAN': 'Japon',
     'INDONESIA': "Indonésie", 'AUSTRALIA': "Australie", 'MALAYSIA': 'Malaisie',
-    'PORTUGAL': 'Portugal', 'VALENCIA': 'Valence', 'QATAR': 'Qatar',
-    'CZECHIA': 'Tchéquie', 'HUNGARY': 'Hongrie'
+    'PORTUGAL': 'du Portugal', 'VALENCIA': 'de Valence', 'QATAR': 'du Qatar',
+    'CZECHIA': 'Tchéquie', 'HUNGARY': 'de Hongrie'
 };
 
 const gpNameTranslations = {
@@ -37,6 +38,24 @@ const gpNameTranslations = {
     'INDONESIA': "d'Indonésie", 'AUSTRALIA': "d'Australie", 'MALAYSIA': 'de Malaisie',
     'PORTUGAL': 'du Portugal', 'VALENCIA': 'de Valence', 'QATAR': 'du Qatar',
     'CZECHIA': 'de Tchéquie', 'HUNGARY': 'de Hongrie'
+};
+
+const sessionNameTranslations = {
+    "Free Practice Nr. 1": "Essais Libres 1",
+    "Practice": "Essais",
+    "Free Practice Nr. 2": "Essais Libres 2",
+    "Qualifying Nr. 1": "Qualifications 1",
+    "Qualifying Nr. 2": "Qualifications 2",
+    "Tissot Sprint": "Course Sprint Tissot",
+    "Warm Up": "Warm Up",
+    "Grand Prix": "Grand Prix"
+};
+
+// CORRECTION: Ajout des abréviations en majuscules
+const dayTranslations = {
+    "Fri": "Ven", "FRI": "Ven",
+    "Sat": "Sam", "SAT": "Sam",
+    "Sun": "Dim", "SUN": "Dim"
 };
 
 const parseRaceDateForCountdown = (dateString, year) => {
@@ -87,9 +106,18 @@ app.get('/api/data', async (req, res) => {
         let nextGpData = calendarPageData.nextGP ? { ...calendarPageData.nextGP } : {};
         if (calendarPageData.nextGP) {
             nextGpData.name = `Grand Prix ${gpNameTranslations[nextGpData.circuit] || nextGpData.circuit}`;
-            // CORRECTION: Traduire également le nom du circuit
             nextGpData.circuit = countryNameTranslations[nextGpData.circuit] || nextGpData.circuit;
             nextGpData.raceDate = parseRaceDateForCountdown(calendarPageData.nextGP.raceDate, year);
+
+            if (nextGpData.sessions) {
+                nextGpData.sessions = nextGpData.sessions.map(session => {
+                    const [dayAbbr, time] = session.time.split(' / ');
+                    return {
+                        name: sessionNameTranslations[session.name] || session.name,
+                        time: `${dayTranslations[dayAbbr] || dayAbbr} / ${time}`
+                    };
+                });
+            }
         }
 
         let lastRaceData = calendarPageData.lastRace || { name: "Dernière Course", results: [] };

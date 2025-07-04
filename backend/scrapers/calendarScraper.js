@@ -39,12 +39,23 @@ export async function scrapeCalendarData() {
                 }
 
                 if (isUpNext) {
+                    // NOUVEAU: Extraction des horaires des séances
+                    const sessions = [];
+                    event.querySelectorAll('.calendar-listing__timings-row').forEach(row => {
+                        const time = row.querySelector('.calendar-listing__timings-session-start')?.innerText.trim();
+                        const name = row.querySelector('.calendar-listing__session-name')?.innerText.trim();
+                        if (time && name) {
+                            sessions.push({ time, name });
+                        }
+                    });
+
                     nextGP = {
                         name: gp,
                         circuit: countryName || "Circuit à déterminer",
                         countryFlag: event.querySelector('.calendar-listing__event-flag')?.getAttribute('src').split('/').pop().split('.')[0].toUpperCase(),
                         raceDate: date,
                         circuitImage: event.querySelector('.calendar-listing__track-image img')?.src || "https://placehold.co/150x80/141414/FFFFFF?text=Circuit",
+                        sessions: sessions // Ajout des sessions
                     };
                 }
             });
@@ -72,6 +83,6 @@ export async function scrapeCalendarData() {
         await page.screenshot({ path: 'error_screenshot_calendar.png', fullPage: true });
         return null;
     } finally {
-        await browser.close();
+        await page.close();
     }
 }
