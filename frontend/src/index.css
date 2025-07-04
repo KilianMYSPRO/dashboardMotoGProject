@@ -1,7 +1,7 @@
 /*
   ==============================================================================
   FICHIER : frontend/src/index.css
-  INSTRUCTION : Remplacez TOUT le contenu de ce fichier par le code ci-dessous.
+  INSTRUCTION : Ce fichier n'a pas besoin d'être modifié.
   ==============================================================================
 */
 @tailwind base;
@@ -40,7 +40,6 @@ body::before {
   0% { background-position: 0% 0%; }
   100% { background-position: 200% 200%; }
 }
-
 
 .motogp-red {
   color: #FF0000;
@@ -87,7 +86,6 @@ body::before {
   cursor: pointer;
 }
 
-
 .widget-header::before {
   content: '';
   width: 4px;
@@ -113,13 +111,12 @@ body::before {
   opacity: 0;
 }
 
-
 .leader-crown {
   color: #FFD700;
   filter: drop-shadow(0 0 5px #FFD700);
 }
 
-/* Scrollbar styling */Ò
+/* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;

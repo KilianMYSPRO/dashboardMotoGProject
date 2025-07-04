@@ -10,11 +10,13 @@ import { Radar } from 'react-chartjs-2';
 
 ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
-// --- Palettes de couleurs ---
+// --- Palettes de couleurs (utilisées comme fallback) ---
 const teamColors = {
     'Ducati Lenovo Team': '#CC0000', 'Prima Pramac Racing': '#9B59B6', 'Gresini Racing MotoGP': '#85C1E9',
     'Aprilia Racing': '#009846', 'Pertamina Enduro VR46': '#FFEB3B', 'Red Bull KTM Factory Racing': '#FF6600',
     'Monster Energy Yamaha': '#003399', 'LCR Honda Castrol': '#27AE60', 'Red Bull GASGAS Tech3': '#E74C3C',
+    'CASTROL Honda LCR': '#27AE60', 'Trackhouse MotoGP Team': '#0055A4', 'Honda HRC Castrol': '#E4000F',
+    'Yamaha Factory Racing': '#003399', 'Prima Pramac Yamaha MotoGP': '#9B59B6', 'IDEMITSU Honda LCR': '#27AE60',
     'Default': '#BBBBBB'
 };
 const constructorColors = { 'Ducati': '#CC0000', 'KTM': '#FF6600', 'Aprilia': '#009846', 'Yamaha': '#003399', 'Honda': '#E4000F', 'Default': '#FFFFFF' };
@@ -64,19 +66,46 @@ const FunFactWidget = ({ data, delay }) => (
     </Widget>
 );
 
-const CalendarWidget = ({ data, delay }) => {
+const CalendarWidget = ({ data, year, delay }) => {
     const calendarRef = useRef(null);
     const nextRaceRef = useRef(null);
+
+    const parseDate = (dateString, year) => {
+        if (!dateString || typeof dateString !== 'string') return null;
+        
+        const monthMapping = {
+            'Jan':0, 'Feb':1, 'Mar':2, 'Apr':3, 'May':4, 'Jun':5, 
+            'Jul':6, 'Aug':7, 'Sep':8, 'Oct':9, 'Nov':10, 'Dec':11
+        };
+        const monthMappingFr = {
+            'janv.':0, 'févr.':1, 'mars':2, 'avr.':3, 'mai':4, 'juin':5, 
+            'juil.':6, 'août':7, 'sept.':8, 'oct.':9, 'nov.':10, 'déc.':11
+        };
+
+        const parts = dateString.split(' - ');
+        const endDatePart = parts[parts.length - 1];
+        const [day, monthAbbr] = endDatePart.split(' ');
+
+        const monthIndex = monthMapping[monthAbbr] || monthMappingFr[monthAbbr?.toLowerCase()];
+
+        if (!day || monthIndex === undefined) return null;
+        
+        const dateObj = new Date(year, monthIndex, parseInt(day));
+        dateObj.setHours(23, 59, 59, 999);
+
+        return isNaN(dateObj.getTime()) ? null : dateObj;
+    };
 
     useEffect(() => {
         if (nextRaceRef.current) {
             setTimeout(() => {
                 nextRaceRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            }, 800);
+            }, 1200);
         }
     }, [data]);
     
     let nextRaceFound = false;
+    const today = new Date();
 
     return (
         <Widget delay={delay} className="lg:col-span-3">
@@ -84,18 +113,20 @@ const CalendarWidget = ({ data, delay }) => {
             <div ref={calendarRef} className="widget-body overflow-x-auto">
                 <div className="flex gap-4 p-2">
                     {data.map(race => {
-                        const raceDate = new Date(race.date);
-                        const isPast = raceDate < new Date();
+                        const raceDate = parseDate(race.date, year);
+                        const isPast = raceDate ? raceDate < today : race.winner !== null;
+                        
                         let isNext = false;
                         if (!isPast && !nextRaceFound) {
                             isNext = true;
                             nextRaceFound = true;
                         }
                         const stateClass = isPast ? 'opacity-50' : isNext ? 'bg-red-500/20 scale-105 ring-2 ring-red-500' : '';
+                        
                         return (
                             <div key={race.gp} ref={isNext ? nextRaceRef : null} className={`flex-none text-center p-3 rounded-lg ${stateClass} transition-transform duration-300 hover:bg-gray-500/10`}>
                                 <p className="font-bold">{race.gp}</p>
-                                <p className="text-sm text-gray-400">{raceDate.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</p>
+                                <p className="text-sm text-gray-400">{race.date}</p>
                                 {race.winner && <p className="text-xs mt-1 text-yellow-400">🏆 {race.winner}</p>}
                             </div>
                         );
@@ -144,12 +175,12 @@ const LiveRaceWidget = ({ data, delay }) => {
             <div className={`widget-body collapsible ${collapsed && 'collapsed'} flex flex-col gap-2`}>
                 {liveData.map(rider => (
                     <div key={rider.position} className="rider-track flex items-center gap-4 p-2 rounded-md transition-all duration-500 ease-in-out relative overflow-hidden" style={{ order: rider.currentPosition }}>
-                        <div className="absolute left-0 top-0 h-full w-1.5" style={{ backgroundColor: teamColors[rider.team] || teamColors.Default, boxShadow: `0 0 8px ${(teamColors[rider.team] || teamColors.Default)}90` }}></div>
+                        <div className="absolute left-0 top-0 h-full w-1.5" style={{ backgroundColor: rider.teamColor || teamColors.Default, boxShadow: `0 0 8px ${(rider.teamColor || teamColors.Default)}90` }}></div>
                         <div className="w-8 text-center font-bold text-lg pl-2">{rider.currentPosition}</div>
                         <div className="w-24 font-semibold truncate">{rider.name}</div>
                         <div className="flex-1 h-6 bg-gray-800/50 rounded-full overflow-hidden relative">
                             <div className="absolute top-0 left-0 h-full w-full bg-repeat-x" style={{ backgroundImage: 'linear-gradient(to right, rgba(255,255,255,0.1) 1px, transparent 1px)', backgroundSize: '5% 100%' }}></div>
-                            <div className="moto-icon absolute top-1/2 -translate-y-1/2 transition-all duration-200 ease-linear" style={{ left: `${rider.progress}%`, color: teamColors[rider.team] || teamColors.Default }}>
+                            <div className="moto-icon absolute top-1/2 -translate-y-1/2 transition-all duration-200 ease-linear" style={{ left: `${rider.progress}%`, color: rider.teamColor || teamColors.Default }}>
                                 <MotoIcon color="currentColor" />
                             </div>
                         </div>
@@ -164,6 +195,7 @@ const NextGpWidget = ({ data, delay }) => {
     const [countdown, setCountdown] = useState({ days: '00', hours: '00', minutes: '00', seconds: '00' });
 
     useEffect(() => {
+        if (!data || !data.raceDate) return;
         const interval = setInterval(() => {
             const now = new Date().getTime();
             const targetDate = new Date(data.raceDate).getTime();
@@ -183,6 +215,8 @@ const NextGpWidget = ({ data, delay }) => {
 
         return () => clearInterval(interval);
     }, [data.raceDate]);
+
+    if (!data) return null;
 
     return (
         <Widget delay={delay} className="lg:col-span-2">
@@ -230,8 +264,8 @@ const NextGpWidget = ({ data, delay }) => {
 };
 
 const LastRaceWidget = ({ data, riders, delay }) => {
-    const podium = data.results.filter(r => r.position <= 3).sort((a, b) => a.position - b.position);
-    const frenchRiders = data.results.filter(r => riders.find(rs => rs.name === r.name && rs.country === 'FR' && r.position > 3));
+    const podium = data.results?.filter(r => r.position <= 3).sort((a, b) => a.position - b.position) || [];
+    const frenchRiders = data.results?.filter(r => riders.find(rs => rs.name === r.name && rs.country === 'FR' && r.position > 3)) || [];
     const podiumColors = ['border-yellow-400', 'border-gray-400', 'border-yellow-600'];
 
     return (
@@ -297,6 +331,8 @@ const LeadersComparisonWidget = ({ data, delay }) => {
 };
 
 const StandingsBarWidget = ({ title, data, colorPalette, delay }) => {
+    if (!data || data.length === 0) return null;
+    
     const standings = data.sort((a, b) => b.points - a.points);
     const maxPoints = Math.max(...standings.map(c => c.points));
 
@@ -355,7 +391,7 @@ function App() {
     }
     
     const getCountryFlag = (countryCode) => {
-        const flags = { 'FR': '🇫🇷', 'IT': '🇮🇹', 'ES': '🇪🇸', 'ZA': '🇿🇦', 'AU': '🇦🇺', 'PT': '🇵🇹', 'GB': '🇬🇧', 'JP': '🇯🇵' };
+        const flags = { 'FR': '🇫🇷', 'IT': '🇮🇹', 'ES': '🇪🇸', 'ZA': '🇿🇦', 'AU': '🇦🇺', 'PT': '🇵🇹', 'GB': '🇬🇧', 'JP': '🇯🇵', 'THA': '🇹🇭', 'QAT': '🇶🇦', 'USA': '🇺🇸', 'ARG': '🇦🇷', 'DEU': '🇩🇪', 'CZE': '🇨🇿', 'AUT': '🇦🇹', 'HUN': '🇭🇺', 'CAT': '🏁', 'SMR': '🇸🇲', 'IDN': '🇮🇩', 'MYS': '🇲🇾', 'NLD': '🇳🇱', 'VAL': '🏁' };
         return flags[countryCode] || '🏳️';
     }
 
@@ -370,17 +406,18 @@ function App() {
                 </header>
 
                 <main className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                    <FunFactWidget data={data.funFacts[Math.floor(Math.random() * data.funFacts.length)]} delay={0.1} />
-                    <CalendarWidget data={data.seasonCalendar} delay={0.2} />
+                    <FunFactWidget data={data.funFacts[0]} delay={0.1} />
+                    <CalendarWidget data={data.seasonCalendar} year={data.season} delay={0.2} />
                     <LiveRaceWidget data={data.riderStandings} delay={0.3} />
 
                     <Widget delay={0.4} className="lg:col-span-3">
                         <WidgetHeader title="Classement Pilotes" />
                         <div className="widget-body space-y-2">
-                            {data.riderStandings.slice(0, 10).map(rider => {
+                            {data.riderStandings.slice(0, 12).map(rider => {
                                 const isLeader = rider.position === 1;
                                 const highlightClass = isLeader ? 'bg-red-500/20 border-l-2 border-red-500' : 'hover:bg-gray-500/10';
-                                const color = teamColors[rider.team] || teamColors.Default;
+                                // CORRECTION: Utilisation de la couleur scrapée
+                                const color = rider.teamColor || teamColors[rider.team] || teamColors.Default;
                                 return (
                                     <div key={rider.position} className={`grid grid-cols-12 gap-2 items-center p-2.5 rounded-md transition-all duration-300 ${highlightClass}`}>
                                         <div className={`col-span-1 text-center font-black text-lg ${isLeader && 'motogp-red'}`}>{rider.position}</div>

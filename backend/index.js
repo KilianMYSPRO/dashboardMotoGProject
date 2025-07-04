@@ -1,10 +1,9 @@
 import express from 'express';
 import cors from 'cors';
-import { scrapeMotogpData } from './scraper.js'; // Importer notre scraper
+import { scrapeRiderStandings, scrapeMotogpCalendar } from './scraper.js';
 
 const app = express();
 const port = 3001;
-
 app.use(cors());
 
 // --- Configuration du Cache ---
@@ -12,17 +11,13 @@ let cache = null;
 let cacheTimestamp = null;
 const CACHE_DURATION_MS = 4 * 60 * 60 * 1000; // 4 heures
 
-// Données statiques pour les widgets non couverts par le scraper
+// Données statiques
 const staticData = {
     funFacts: [
         "Valentino Rossi est le seul pilote à avoir remporté des championnats du monde en 125cc, 250cc, 500cc et MotoGP.",
         "Le circuit le plus long du calendrier est Silverstone avec 5.9 km."
     ],
-    seasonCalendar: [ // Le calendrier est difficile à scraper, on le garde statique pour l'instant
-        { gp: "Thaïlande", date: "2025-03-02", winner: "M. Marquez" },
-        { gp: "Allemagne", date: "2025-07-06", winner: null },
-    ],
-    nextGP: { name: "Grand Prix d'Allemagne", circuit: "Sachsenring", countryFlag: "🇩🇪", circuitImage: "https://placehold.co/150x80/141414/FFFFFF?text=Sachsenring", raceDate: "2025-07-06T14:00:00", length: "3.7 km", corners: "13 (10 G, 3 D)", lapRecord: "1:21.225 (J. Martin)", weather: [{day: "Ven", icon: "sun", temp: "24°"}, {day: "Sam", icon: "cloudy", temp: "22°"}, {day: "Dim", icon: "sun", temp: "25°"}] }
+    nextGP: { name: "Prochain Grand Prix", circuit: "À déterminer", countryFlag: "🏁", circuitImage: "https://placehold.co/150x80/141414/FFFFFF?text=Circuit", raceDate: new Date().toISOString(), length: "N/A", corners: "N/A", lapRecord: "N/A", weather: [{day: "Ven", icon: "sun", temp: "?"},{day: "Sam", icon: "cloudy", temp: "?"},{day: "Dim", icon: "rain", temp: "?"}] }
 };
 
 app.get('/api/data', async (req, res) => {
@@ -36,24 +31,26 @@ app.get('/api/data', async (req, res) => {
     console.log("CACHE EXPIRED: Lancement du scraping pour obtenir des données fraîches.");
 
     try {
-        const scrapedData = await scrapeMotogpData();
+        // Lancer les deux scrapings en parallèle
+        const [standingsData, calendarData] = await Promise.all([
+            scrapeRiderStandings(),
+            scrapeMotogpCalendar()
+        ]);
 
-        if (!scrapedData) {
-            throw new Error("Le scraping a échoué, aucune donnée n'a été retournée.");
+        if (!standingsData || !calendarData) {
+            throw new Error("L'une des tâches de scraping a échoué.");
         }
 
-        // Simuler les classements manquants à partir des données des pilotes
-        const teamStandings = []; // Logique à ajouter si nécessaire
-        const constructorStandings = []; // Logique à ajouter si nécessaire
-
-        // Combiner les données scrapées avec les données statiques
+        // Combiner les données
         const fullData = {
             season: new Date().getFullYear(),
             ...staticData,
-            riderStandings: scrapedData.riderStandings,
-            teamStandings,
-            constructorStandings,
-            lastRace: { name: "Dernière Course", results: [] }, // A scraper sur une autre page si besoin
+            riderStandings: standingsData.riderStandings,
+            seasonCalendar: calendarData.seasonCalendar,
+            // Simuler les classements manquants
+            teamStandings: [],
+            constructorStandings: [],
+            lastRace: { name: "Dernière Course", results: [] },
         };
 
         // Mettre à jour le cache
@@ -76,3 +73,4 @@ app.get('/api/data', async (req, res) => {
 app.listen(port, () => {
     console.log(`Backend server listening at http://localhost:${port}`);
 });
+
