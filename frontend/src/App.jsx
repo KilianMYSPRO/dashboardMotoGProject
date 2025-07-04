@@ -70,16 +70,17 @@ const CalendarWidget = ({ data, year, delay }) => {
     const calendarRef = useRef(null);
     const nextRaceRef = useRef(null);
 
-    const parseDate = (dateString, year) => {
-        if (!dateString || typeof dateString !== 'string') return null;
-        
+    // CORRECTION: Fonction unifiée pour parser et formater la date
+    const parseAndFormatDate = (dateString, year) => {
+        if (!dateString || typeof dateString !== 'string') return { dateObj: null, formattedDate: 'Date N/A' };
+
         const monthMapping = {
-            'Jan':0, 'Feb':1, 'Mar':2, 'Apr':3, 'May':4, 'Jun':5, 
-            'Jul':6, 'Aug':7, 'Sep':8, 'Oct':9, 'Nov':10, 'Dec':11
+            'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+            'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
         };
         const monthMappingFr = {
-            'janv.':0, 'févr.':1, 'mars':2, 'avr.':3, 'mai':4, 'juin':5, 
-            'juil.':6, 'août':7, 'sept.':8, 'oct.':9, 'nov.':10, 'déc.':11
+            'janv.': 0, 'févr.': 1, 'mars': 2, 'avr.': 3, 'mai': 4, 'juin': 5,
+            'juil.': 6, 'août': 7, 'sept.': 8, 'oct.': 9, 'nov.': 10, 'déc.': 11
         };
 
         const parts = dateString.split(' - ');
@@ -88,12 +89,21 @@ const CalendarWidget = ({ data, year, delay }) => {
 
         const monthIndex = monthMapping[monthAbbr] || monthMappingFr[monthAbbr?.toLowerCase()];
 
-        if (!day || monthIndex === undefined) return null;
+        if (!day || monthIndex === undefined) {
+            return { dateObj: null, formattedDate: dateString };
+        }
         
         const dateObj = new Date(year, monthIndex, parseInt(day));
         dateObj.setHours(23, 59, 59, 999);
 
-        return isNaN(dateObj.getTime()) ? null : dateObj;
+        if (isNaN(dateObj.getTime())) {
+            return { dateObj: null, formattedDate: dateString };
+        }
+
+        return {
+            dateObj,
+            formattedDate: dateObj.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })
+        };
     };
 
     useEffect(() => {
@@ -113,8 +123,8 @@ const CalendarWidget = ({ data, year, delay }) => {
             <div ref={calendarRef} className="widget-body overflow-x-auto">
                 <div className="flex gap-4 p-2">
                     {data.map(race => {
-                        const raceDate = parseDate(race.date, year);
-                        const isPast = raceDate ? raceDate < today : race.winner !== null;
+                        const { dateObj, formattedDate } = parseAndFormatDate(race.date, year);
+                        const isPast = dateObj ? dateObj < today : race.winner !== null;
                         
                         let isNext = false;
                         if (!isPast && !nextRaceFound) {
