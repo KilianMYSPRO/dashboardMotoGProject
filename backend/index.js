@@ -1,9 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import puppeteer from 'puppeteer';
-// CORRECTION: Importer depuis les bons fichiers séparés
 import { scrapeRiderStandings } from './scrapers/standingsScraper.js';
 import { scrapeCalendarData } from './scrapers/calendarScraper.js';
+import { scrapeLastRaceResults } from './scrapers/lastRaceScraper.js';
 
 const app = express();
 const port = 3001;
@@ -17,20 +17,11 @@ const staticData = {
     funFacts: [
         "Valentino Rossi est le seul pilote à avoir remporté des championnats du monde en 125cc, 250cc, 500cc et MotoGP.",
         "Le circuit le plus long du calendrier est Silverstone avec 5.9 km."
-    ]
+    ],
+    nextGP: { name: "Prochain Grand Prix", circuit: "À déterminer", countryFlag: "🏁", circuitImage: "https://placehold.co/150x80/141414/FFFFFF?text=Circuit", raceDate: new Date().toISOString(), length: "N/A", corners: "N/A", lapRecord: "N/A", weather: [{day: "Ven", icon: "sun", temp: "?"},{day: "Sam", icon: "cloudy", temp: "?"},{day: "Dim", icon: "rain", temp: "?"}] }
 };
 
-const countryNameTranslations = {
-    'THAILAND': 'Thaïlande', 'ARGENTINA': "Argentine", 'USA': 'Amériques', 'SPAIN': "Espagne",
-    'FRANCE': 'France', 'ITALY': "Italie", 'NETHERLANDS': 'Pays-Bas', 'GERMANY': "Allemagne",
-    'UNITED KINGDOM': 'Grande-Bretagne', 'AUSTRIA': "Autriche", 'ARAGON': "Aragon",
-    'CATALONIA': 'Catalogne', 'SAN MARINO': 'Saint-Marin', 'JAPAN': 'Japon',
-    'INDONESIA': "Indonésie", 'AUSTRALIA': "Australie", 'MALAYSIA': 'Malaisie',
-    'PORTUGAL': 'du Portugal', 'VALENCIA': 'de Valence', 'QATAR': 'du Qatar',
-    'CZECHIA': 'Tchéquie', 'HUNGARY': 'de Hongrie'
-};
-
-const gpNameTranslations = {
+const countryTranslations = {
     'THAILAND': 'de Thaïlande', 'ARGENTINA': "d'Argentine", 'USA': 'des Amériques', 'SPAIN': "d'Espagne",
     'FRANCE': 'de France', 'ITALY': "d'Italie", 'NETHERLANDS': 'des Pays-Bas', 'GERMANY': "d'Allemagne",
     'UNITED KINGDOM': 'de Grande-Bretagne', 'AUSTRIA': "d'Autriche", 'ARAGON': "d'Aragon",
@@ -40,23 +31,7 @@ const gpNameTranslations = {
     'CZECHIA': 'de Tchéquie', 'HUNGARY': 'de Hongrie'
 };
 
-const sessionNameTranslations = {
-    "Free Practice Nr. 1": "Essais Libres 1",
-    "Practice": "Essais",
-    "Free Practice Nr. 2": "Essais Libres 2",
-    "Qualifying Nr. 1": "Qualifications 1",
-    "Qualifying Nr. 2": "Qualifications 2",
-    "Tissot Sprint": "Course Sprint Tissot",
-    "Warm Up": "Warm Up",
-    "Grand Prix": "Grand Prix"
-};
-
-// CORRECTION: Ajout des abréviations en majuscules
-const dayTranslations = {
-    "Fri": "Ven", "FRI": "Ven",
-    "Sat": "Sam", "SAT": "Sam",
-    "Sun": "Dim", "SUN": "Dim"
-};
+const gpNameTranslations = countryTranslations;
 
 const parseRaceDateForCountdown = (dateString, year) => {
     if (!dateString || typeof dateString !== 'string') return new Date().toISOString();
@@ -87,10 +62,16 @@ app.get('/api/data', async (req, res) => {
             protocolTimeout: 60000
         });
 
-        const [standingsData, calendarPageData] = await Promise.all([
-            scrapeRiderStandings(browser),
-            scrapeCalendarData(browser)
-        ]);
+        const standingsData = await scrapeRiderStandings(browser);
+        const calendarPageData = await scrapeCalendarData(browser);
+        
+        let lastRaceResults = null;
+        if (calendarPageData && calendarPageData.lastRace && calendarPageData.lastRace.countryCode) {
+            const year = new Date().getFullYear();
+            const countryCode = calendarPageData.lastRace.countryCode.toLowerCase();
+            const resultsUrl = `https://www.motogp.com/fr/gp-results/${year}/${countryCode}/motogp/rac/classification`;
+            lastRaceResults = await scrapeLastRaceResults(browser, resultsUrl);
+        }
         
         if (!standingsData || !calendarPageData) {
             throw new Error("L'une des tâches de scraping a échoué.");
@@ -103,26 +84,19 @@ app.get('/api/data', async (req, res) => {
             gp: `Grand Prix ${gpNameTranslations[race.countryName] || race.countryName || race.gp}`
         }));
 
-        let nextGpData = calendarPageData.nextGP ? { ...calendarPageData.nextGP } : {};
+        let nextGpData = calendarPageData.nextGP || {};
         if (calendarPageData.nextGP) {
             nextGpData.name = `Grand Prix ${gpNameTranslations[nextGpData.circuit] || nextGpData.circuit}`;
-            nextGpData.circuit = countryNameTranslations[nextGpData.circuit] || nextGpData.circuit;
+            nextGpData.circuit = countryTranslations[nextGpData.circuit] || nextGpData.circuit;
             nextGpData.raceDate = parseRaceDateForCountdown(calendarPageData.nextGP.raceDate, year);
-
-            if (nextGpData.sessions) {
-                nextGpData.sessions = nextGpData.sessions.map(session => {
-                    const [dayAbbr, time] = session.time.split(' / ');
-                    return {
-                        name: sessionNameTranslations[session.name] || session.name,
-                        time: `${dayTranslations[dayAbbr] || dayAbbr} / ${time}`
-                    };
-                });
-            }
         }
 
         let lastRaceData = calendarPageData.lastRace || { name: "Dernière Course", results: [] };
         if (calendarPageData.lastRace && calendarPageData.lastRace.countryName) {
             lastRaceData.name = `Grand Prix ${gpNameTranslations[calendarPageData.lastRace.countryName] || calendarPageData.lastRace.countryName}`;
+        }
+        if (lastRaceResults && lastRaceResults.length > 0) {
+            lastRaceData.results = lastRaceResults;
         }
 
         const fullData = {

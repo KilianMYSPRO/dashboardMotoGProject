@@ -2,8 +2,7 @@ import { setupBrowser, handleCookieBanner } from './utils.js';
 
 const CALENDAR_URL = 'https://www.motogp.com/fr/calendar?view=list';
 
-export async function scrapeCalendarData() {
-    const browser = await setupBrowser();
+export async function scrapeCalendarData(browser) {
     const page = await browser.newPage();
     await page.setViewport({ width: 1920, height: 1080 });
     try {
@@ -39,23 +38,12 @@ export async function scrapeCalendarData() {
                 }
 
                 if (isUpNext) {
-                    // NOUVEAU: Extraction des horaires des séances
-                    const sessions = [];
-                    event.querySelectorAll('.calendar-listing__timings-row').forEach(row => {
-                        const time = row.querySelector('.calendar-listing__timings-session-start')?.innerText.trim();
-                        const name = row.querySelector('.calendar-listing__session-name')?.innerText.trim();
-                        if (time && name) {
-                            sessions.push({ time, name });
-                        }
-                    });
-
                     nextGP = {
                         name: gp,
                         circuit: countryName || "Circuit à déterminer",
                         countryFlag: event.querySelector('.calendar-listing__event-flag')?.getAttribute('src').split('/').pop().split('.')[0].toUpperCase(),
                         raceDate: date,
                         circuitImage: event.querySelector('.calendar-listing__track-image img')?.src || "https://placehold.co/150x80/141414/FFFFFF?text=Circuit",
-                        sessions: sessions // Ajout des sessions
                     };
                 }
             });
@@ -67,9 +55,14 @@ export async function scrapeCalendarData() {
                     const name = p.querySelector('.calendar-listing__podium-driver-name')?.innerText.trim();
                     if (posText && name) podium.push({ position: parseInt(posText, 10), name });
                 });
+
+                // CORRECTION: Extraire le code du pays pour construire l'URL plus tard
+                const countryCode = lastFinishedEventElement.querySelector('.calendar-listing__event-flag')?.getAttribute('src').split('/').pop().split('.')[0] || null;
+
                 lastRace = {
                     name: lastFinishedEventElement.querySelector('.calendar-listing__event-name')?.innerText.trim(),
                     countryName: lastFinishedEventElement.querySelector('.calendar-listing__event-full-name')?.innerText.trim(),
+                    countryCode: countryCode,
                     results: podium.sort((a, b) => a.position - b.position)
                 };
             }
