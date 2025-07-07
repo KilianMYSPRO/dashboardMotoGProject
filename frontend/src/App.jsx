@@ -70,39 +70,16 @@ const CalendarWidget = ({ data, year, delay }) => {
     const calendarRef = useRef(null);
     const nextRaceRef = useRef(null);
 
-    const parseAndFormatDate = (dateString, year) => {
-        if (!dateString || typeof dateString !== 'string') return { dateObj: null, formattedDate: 'Date N/A' };
-
-        const monthMapping = {
-            'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-            'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
-        };
-        const monthMappingFr = {
-            'janv.': 0, 'févr.': 1, 'mars': 2, 'avr.': 3, 'mai': 4, 'juin': 5,
-            'juil.': 6, 'août': 7, 'sept.': 8, 'oct.': 9, 'nov.': 10, 'déc.': 11
-        };
-
+    const parseDate = (dateString, year) => {
+        if (!dateString || typeof dateString !== 'string') return null;
+        const monthMapping = { 'Jan':0, 'Feb':1, 'Mar':2, 'Apr':3, 'May':4, 'Jun':5, 'Jul':6, 'Aug':7, 'Sep':8, 'Oct':9, 'Nov':10, 'Dec':11 };
         const parts = dateString.split(' - ');
         const endDatePart = parts[parts.length - 1];
         const [day, monthAbbr] = endDatePart.split(' ');
-
-        const monthIndex = monthMapping[monthAbbr] || monthMappingFr[monthAbbr?.toLowerCase()];
-
-        if (!day || monthIndex === undefined) {
-            return { dateObj: null, formattedDate: dateString };
-        }
-        
-        const dateObj = new Date(year, monthIndex, parseInt(day));
+        if (!day || !monthAbbr || monthMapping[monthAbbr] === undefined) return null;
+        const dateObj = new Date(year, monthMapping[monthAbbr], parseInt(day));
         dateObj.setHours(23, 59, 59, 999);
-
-        if (isNaN(dateObj.getTime())) {
-            return { dateObj: null, formattedDate: dateString };
-        }
-
-        return {
-            dateObj,
-            formattedDate: dateObj.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })
-        };
+        return isNaN(dateObj.getTime()) ? null : dateObj;
     };
 
     useEffect(() => {
@@ -122,8 +99,8 @@ const CalendarWidget = ({ data, year, delay }) => {
             <div ref={calendarRef} className="widget-body overflow-x-auto">
                 <div className="flex gap-4 p-2">
                     {data.map(race => {
-                        const { dateObj, formattedDate } = parseAndFormatDate(race.date, year);
-                        const isPast = dateObj ? dateObj < today : race.winner !== null;
+                        const raceDate = parseDate(race.date, year);
+                        const isPast = raceDate ? raceDate < today : race.winner !== null;
                         
                         let isNext = false;
                         if (!isPast && !nextRaceFound) {
@@ -135,7 +112,7 @@ const CalendarWidget = ({ data, year, delay }) => {
                         return (
                             <div key={race.gp} ref={isNext ? nextRaceRef : null} className={`flex-none text-center p-3 rounded-lg ${stateClass} transition-transform duration-300 hover:bg-gray-500/10`}>
                                 <p className="font-bold">{race.gp}</p>
-                                <p className="text-sm text-gray-400">{formattedDate}</p>
+                                <p className="text-sm text-gray-400">{race.date}</p>
                                 {race.winner && <p className="text-xs mt-1 text-yellow-400">🏆 {race.winner}</p>}
                             </div>
                         );
@@ -157,7 +134,6 @@ const LiveRaceWidget = ({ data, delay }) => {
         if (!collapsed) {
             const initialData = data.map((rider, index) => ({ ...rider, progress: 0, currentPosition: index + 1 }));
             setLiveData(initialData);
-
             intervalRef.current = setInterval(() => {
                 setLiveData(prevData => {
                     const newData = prevData.map(rider => {
@@ -209,19 +185,13 @@ const NextGpWidget = ({ data, delay }) => {
             const now = new Date().getTime();
             const targetDate = new Date(data.raceDate).getTime();
             const distance = targetDate - now;
-
-            if (distance < 0) {
-                clearInterval(interval);
-                return;
-            }
-
+            if (distance < 0) { clearInterval(interval); return; }
             const days = String(Math.floor(distance / (1000 * 60 * 60 * 24))).padStart(2, '0');
             const hours = String(Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))).padStart(2, '0');
             const minutes = String(Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, '0');
             const seconds = String(Math.floor((distance % (1000 * 60)) / 1000)).padStart(2, '0');
             setCountdown({ days, hours, minutes, seconds });
         }, 1000);
-
         return () => clearInterval(interval);
     }, [data.raceDate]);
 
@@ -240,7 +210,6 @@ const NextGpWidget = ({ data, delay }) => {
                             <p className="text-gray-300">{data.circuit}</p>
                         </div>
                     </div>
-                    {/* NOUVEAU: Affichage des horaires des séances */}
                     {data.sessions && data.sessions.length > 0 && (
                         <div className="mt-4 pt-4 border-t border-gray-700/50">
                             <h4 className="font-semibold text-center mb-2 text-gray-300">Horaires des Séances</h4>
@@ -273,8 +242,8 @@ const NextGpWidget = ({ data, delay }) => {
 };
 
 const LastRaceWidget = ({ data, riders, delay }) => {
-    const podium = data.results?.filter(r => r.position <= 3).sort((a, b) => a.position - b.position) || [];
-    const frenchRiders = data.results?.filter(r => riders.find(rs => rs.name === r.name && rs.country === 'FR' && r.position > 3)) || [];
+    const podium = data.results?.filter(r => r.position <= 3) || [];
+    const otherResults = data.results?.filter(r => r.position > 3 || r.position === 'NC') || [];
     const podiumColors = ['border-yellow-400', 'border-gray-400', 'border-yellow-600'];
 
     return (
@@ -294,10 +263,17 @@ const LastRaceWidget = ({ data, riders, delay }) => {
                         );
                     })}
                 </div>
-                {frenchRiders.length > 0 && (
+                {otherResults.length > 0 && (
                     <div className="mt-4 pt-4 border-t border-gray-700/50">
-                        <h4 className="font-semibold text-gray-300">Nos Français :</h4>
-                        <p className="text-sm text-gray-400">{frenchRiders.map(r => `${r.name} - P${r.position}`).join(', ')}</p>
+                        <h4 className="font-semibold text-center mb-2 text-gray-300">Classement Complet</h4>
+                        <div className="space-y-1 text-sm max-h-48 overflow-y-auto pr-2">
+                            {otherResults.map((rider, index) => (
+                                <div key={index} className="flex justify-between p-1.5 rounded-md hover:bg-gray-700/50">
+                                    <span className="font-bold">{rider.position}.</span>
+                                    <span className="text-gray-300">{rider.name}</span>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>
@@ -424,7 +400,8 @@ function App() {
                         <div className="widget-body space-y-2">
                             {data.riderStandings.slice(0, 12).map(rider => {
                                 const isLeader = rider.position === 1;
-                                const highlightClass = isLeader ? 'bg-red-500/20 border-l-2 border-red-500' : 'hover:bg-gray-500/10';
+                                const isFrench = rider.country === 'FR';
+                                const highlightClass = isLeader ? 'bg-red-500/20 border-l-2 border-red-500' : isFrench ? 'bg-blue-500/20' : 'hover:bg-gray-500/10';
                                 const color = rider.teamColor || teamColors[rider.team] || teamColors.Default;
                                 return (
                                     <div key={rider.position} className={`grid grid-cols-12 gap-2 items-center p-2.5 rounded-md transition-all duration-300 ${highlightClass}`}>
@@ -442,12 +419,19 @@ function App() {
                     <Widget delay={0.5} className="lg:col-span-1">
                         <WidgetHeader title="Le Coin des Français 🇫🇷" />
                         <div className="widget-body space-y-4">
-                            {data.riderStandings.filter(r => r.country === 'FR').map(rider => (
-                                <div key={rider.name} className="bg-blue-900/20 p-3 rounded-lg border border-blue-500/30 hover:bg-blue-900/40 transition-colors">
-                                    <p className="font-bold text-lg">{rider.name}</p>
-                                    <p className="text-sm text-gray-300">{rider.team}</p>
-                                </div>
-                            ))}
+                            {data.riderStandings.filter(r => r.country === 'FR').map(rider => {
+                                const lastRaceResult = data.lastRace.results.find(res => res.name.includes(rider.name.split(' ')[1]));
+                                const lastRacePosition = lastRaceResult ? `${lastRaceResult.position}e` : 'N/A';
+                                return (
+                                    <div key={rider.name} className="bg-blue-900/20 p-3 rounded-lg border border-blue-500/30 hover:bg-blue-900/40 transition-colors">
+                                        <p className="font-bold text-lg">{rider.name}</p>
+                                        <p className="text-sm text-gray-300">{rider.team}</p>
+                                        <div className="mt-2 text-sm">
+                                            <span>Dernière course: <strong className="font-black">{lastRacePosition}</strong></span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     </Widget>
                     
